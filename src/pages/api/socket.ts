@@ -46,14 +46,15 @@ const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
 
         io.on('connect', socket => {
             console.log('A user has connected: ' + socket.id);
-            console.log(socket);
-            console.log(game);
 
             socket.on('join-game', () => {
+                console.log('Attempting to join game...');
                 if (!game.running) {
+                    console.log(`$socket.id successfully connected to game...`);
                     const newLength = game.playerIds.push(socket.id);
                     if (newLength == 2) {
                         game.running = true;
+                        console.log('Game started...');
                     }
                 }
             });
