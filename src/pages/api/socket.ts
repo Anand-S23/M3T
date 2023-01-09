@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { Server as HTTPServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { Socket } from 'net';
+import { GameState, PlayerInit } from '../types';
 
 interface SocketServer extends HTTPServer {
     io?: SocketIOServer | undefined
@@ -15,22 +16,13 @@ interface NextApiResponseWithSocket extends NextApiResponse {
     socket: SocketWithIO
 }
 
-type GameState = {
-    running: boolean,
-    board: number[],
-    movesPlayed: number,
-    playerTurn: number,
-    playerIds: string[]
-};
-
 const game: GameState = {
     running: false,
     board: new Array(9).fill(0),
     movesPlayed: 0,
     playerTurn: 1,
     playerIds: []
-}
-
+};
 
 const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
     if (res.socket.server.io) {
@@ -44,6 +36,7 @@ const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
 
         io.on('connect', socket => {
             console.log('A user has connected: ' + socket.id);
+            socket.emit('game-status', game.running);
 
             socket.on('join-game', () => {
                 // Can only join if game not started
@@ -54,36 +47,36 @@ const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
                     if (newLength == 2) {
                         // Set game to running when two players join
                         game.running = true;
-                        
+
                         // Log game start
                         console.log('Game started...');
                         console.log('Player 1 ID: ' + game.playerIds[0]);
                         console.log('Player 2 ID: ' + game.playerIds[1]);
 
-                        // Emit game start to both players
-                        socket.emit('game-start');
-                        socket.broadcast.emit('game-start');
+                        // Emit game start to all connected sockets
+                        const playerInit: PlayerInit = {
+                            p1Id: game.playerIds[0],
+                            p2Id: game.playerIds[1]
+                        };
+                        socket.emit('game-start', playerInit);
+                        socket.broadcast.emit('game-start', playerInit);
                     }
                 }
             });
 
             socket.on('cell-clicked', (cellIndex: number) => {
-                let currentPlayerIndex = game.playerTurn - 1;
-                if (socket.id === game.playerIds[currentPlayerIndex]) {
-                    // Update game board
-                    console.log('Updating board...');
-                    game.board[cellIndex] = game.playerTurn;
+                // Update game board
+                console.log('Updating board...');
+                game.board[cellIndex] = game.playerTurn;
+                game.movesPlayed++;
 
-                    // Emit data to both players
-                    // TODO: Might not have to send data to both players
-                    socket.emit('move-made', game.board);
-                    socket.broadcast.emit('move-made', game.board);
+                // Emit cell clicked to other player
+                socket.broadcast.emit('move-made', cellIndex);
 
-                    // Set turn to next player
-                    game.playerTurn = (game.playerTurn === 1) ? 2 : 1;
-                } else {
-                    console.log(`Move by ${socket.id} failed, other player needs move first`);
-                }
+                // TODO: Check for winner or draw
+
+                // Set turn to next player
+                game.playerTurn = (game.playerTurn === 1) ? 2 : 1;
             });
         });
     }

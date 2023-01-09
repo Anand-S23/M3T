@@ -4,54 +4,62 @@ import { FC, useEffect, useState } from "react";
 import type { Socket } from "socket.io-client";
 import io from 'socket.io-client';
 import {DefaultEventsMap} from "@socket.io/component-emitter";
+import { CellType, PlayerInit, PlayerSymbol } from "./types";
 
-// Gobal socket declaration
+// Gobal Variable Declaration // 
 let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
 
-const renderBoard = (gameBoard: number[]) => {
-    const stringBoard: string[] = new Array(9).fill('');
-    for (let i = 0; i < stringBoard.length; ++i) {
-        if (gameBoard[i] === 1) {
-            stringBoard[i] = 'X';
-        } else if (gameBoard[i] === 2) {
-            stringBoard[i] = 'O';
-        }
-    }
+let playerSymbol: PlayerSymbol = {
+    1: 'X',
+    2: 'O'
+};
 
-    const handleCellClick = (cellIndex: number) => {
-        socket.emit('cell-clicked', cellIndex);
-    }
+// Component Props //
+interface SquareProps {
+    onClick(): void;
+    value: CellType;
+    index: number;
+};
 
+interface BoardProps {
+    onClick(cellIndex: number): void;
+    boardCells: CellType[];
+};
+
+// Components //
+const Square: React.FC<SquareProps> = (props) => {
     return (
-        <div className="grid grid-cols-3 mt-2">
-            { stringBoard.map( (cellVal, index) => {
-                return <div
-                    className="border-solid border-2 border-black w-32 h-32
-                        text-6xl text-center flex items-center justify-center
-                        hover:cusor-pointer"
-                    onClick={() => { handleCellClick(index); }}
-                    key={index}>
-                        {cellVal}
-                </div>;
-            })}
+        <div className="border-solid border-2 border-black 
+            w-32 h-32 text-6xl text-center flex items-center 
+            justify-center hover:cusor-pointer"
+            onClick={ props.onClick }
+            key={ props.index }>
+                { props.value }
         </div>
     );
 };
 
-const PageHead: FC = () => {
+const Board: React.FC<BoardProps> = (props) => {
     return (
-        <Head>
-            <title>3T</title>
-            <meta name="description" content="Tic Tac Toe Game" />
-            <link rel="icon" href="/favicon.ico" />
-        </Head>
+        <div className="grid grid-cols-3 mt-2">
+            { props.boardCells.map( (cellVal, index) => {
+                return <Square
+                    value={props.boardCells[index] || ''}
+                    onClick={() => props.onClick(index)} 
+                    index={index}/>
+            })}
+        </div>
     );
-};
+}
 
+// Main Page Layout //
 const Home: NextPage = () => {
     const [isJoined, setIsJoined] = useState(false);
     const [gameStarted, setGameStarted] = useState(false);
-    var gameBoard: number[] = new Array(9).fill(0);
+    const [turn, setTurn] = useState(false);
+    let playerId: number = -1;
+
+    var gameBoard: CellType[] = new Array(9).fill('');
 
     const socketInitializer = async () => {
         await fetch('/api/socket');
@@ -61,25 +69,47 @@ const Home: NextPage = () => {
             console.log('connected')
         });
 
-        socket.on('game-start', () => {
+        socket.on('game-status', (started: boolean) => {
+            setGameStarted(started);
+        });
+
+        socket.on('game-start', (playerInit: PlayerInit) => {
+            if (playerInit.p1Id === socket.id) {
+                playerId = 1;
+                setTurn(true);
+            } else if (playerInit.p2Id === socket.id) {
+                playerId = 2;
+            }
+
             setGameStarted(true);
             console.log('Game has been started...');
         });
 
-        socket.on('move-made', (newGameBoard: number[]) => {
-            gameBoard = newGameBoard;
+        socket.on('move-made', (index: number) => {
+            gameBoard[index] = playerId === 1 ? playerSymbol[2] : playerSymbol[1];
+            setTurn(true);
         });
     };
 
     // Socket will be initalized when first loading the page
     useEffect(() => { socketInitializer(); }, []);
 
-    // TODO: Figure if there is better way of doing this
-    useEffect(() => { renderBoard(gameBoard); }, [gameBoard]);
+    const handleCellClick = (index: number) => {
+        if (turn && gameBoard[index] === '') {
+            socket.emit('cell-clicked', index);
+            gameBoard[index] = playerId === 1 ? playerSymbol[1] : playerSymbol[2];
+            setTurn(false);
+        }
+    };
 
     return (
         <>
-            <PageHead />
+            <Head>
+                <title>M3T</title>
+                <meta name="description" content="Tic Tac Toe Game" />
+                <link rel="icon" href="/favicon.ico" />
+            </Head>
+
             <main
                 className="container mx-auto flex min-h-screen flex-col
                 items-center justify-center p-4">
@@ -96,14 +126,23 @@ const Home: NextPage = () => {
                 </button> }
 
                 { isJoined && !gameStarted && <div>
-                    Waiting for other player to join... 
+                    Waiting for other player to join...
                 </div>}
 
-                { renderBoard(gameBoard) }
+                { isJoined && gameStarted && turn && <div>
+                    Your Turn
+                </div>}
+
+                { isJoined && gameStarted && !turn && <div>
+                    Opponent's Turn
+                </div>}
+
+                <Board 
+                    onClick={ i => handleCellClick(i) }
+                    boardCells={gameBoard} />
             </main>
         </>
     );
 };
 
 export default Home;
-
