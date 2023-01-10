@@ -4,49 +4,31 @@ import { FC, useEffect, useState } from "react";
 import type { Socket } from "socket.io-client";
 import io from 'socket.io-client';
 import {DefaultEventsMap} from "@socket.io/component-emitter";
-import { CellType, PlayerInit, PlayerSymbol } from "./types";
+import { CellType, PlayerInit } from "./types";
 
 // Gobal Variable Declaration // 
 let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
-
-let playerSymbol: PlayerSymbol = {
-    1: 'X',
-    2: 'O'
-};
-
-// Component Props //
-interface SquareProps {
-    onClick(): void;
-    value: CellType;
-    index: number;
-};
 
 interface BoardProps {
     onClick(cellIndex: number): void;
     boardCells: CellType[];
 };
 
-// Components //
-const Square: React.FC<SquareProps> = (props) => {
-    return (
-        <div className="border-solid border-2 border-black 
-            w-32 h-32 text-6xl text-center flex items-center 
-            justify-center hover:cusor-pointer"
-            onClick={ props.onClick }
-            key={ props.index }>
-                { props.value }
-        </div>
-    );
-};
-
 const Board: React.FC<BoardProps> = (props) => {
+    const cellStyle: string = `border-solid border-2 border-black 
+        w-32 h-32 text-6xl text-center flex items-center 
+        justify-center hover:cusor-pointer`;
+
     return (
         <div className="grid grid-cols-3 mt-2">
-            { props.boardCells.map( (cellVal, index) => {
-                return <Square
-                    value={props.boardCells[index] || ''}
-                    onClick={() => props.onClick(index)} 
-                    index={index}/>
+            { props.boardCells.map( (cellVal: CellType, index: number) => {
+                return (
+                    <div className={ cellStyle }
+                        onClick={() => props.onClick(index)}
+                        key={ index }>
+                            { cellVal }
+                    </div>
+                );
             })}
         </div>
     );
@@ -57,9 +39,8 @@ const Home: NextPage = () => {
     const [isJoined, setIsJoined] = useState(false);
     const [gameStarted, setGameStarted] = useState(false);
     const [turn, setTurn] = useState(false);
-    let playerId: number = -1;
-
-    var gameBoard: CellType[] = new Array(9).fill('');
+    const [gameBoard, setGameBoard] = useState<CellType[]>(Array(9).fill(''));
+    let playerSymbol: CellType = '';
 
     const socketInitializer = async () => {
         await fetch('/api/socket');
@@ -75,30 +56,36 @@ const Home: NextPage = () => {
 
         socket.on('game-start', (playerInit: PlayerInit) => {
             if (playerInit.p1Id === socket.id) {
-                playerId = 1;
-                setTurn(true);
+                playerSymbol = 'X';
+                setTurn(!turn);
             } else if (playerInit.p2Id === socket.id) {
-                playerId = 2;
+                playerSymbol = 'O';
             }
 
-            setGameStarted(true);
+            setGameStarted(!gameStarted);
             console.log('Game has been started...');
         });
 
-        socket.on('move-made', (index: number) => {
-            gameBoard[index] = playerId === 1 ? playerSymbol[2] : playerSymbol[1];
-            setTurn(true);
+        socket.on('move-made', (cellIndex: number) => {
+            if (playerSymbol === 'X' || playerSymbol === 'O') {
+                const updatedBoard = [...gameBoard];
+                updatedBoard[cellIndex] =  (playerSymbol === 'X') ? 'X' : 'O';
+                setGameBoard(updatedBoard);
+                setTurn(!turn);
+            }
         });
     };
 
     // Socket will be initalized when first loading the page
     useEffect(() => { socketInitializer(); }, []);
 
-    const handleCellClick = (index: number) => {
-        if (turn && gameBoard[index] === '') {
-            socket.emit('cell-clicked', index);
-            gameBoard[index] = playerId === 1 ? playerSymbol[1] : playerSymbol[2];
-            setTurn(false);
+    const handleCellClick = (cellIndex: number) => {
+        if (turn && gameBoard[cellIndex] === '') {
+            socket.emit('cell-clicked', cellIndex);
+            const updatedBoard = [...gameBoard];
+            updatedBoard[cellIndex] =  (playerSymbol === 'X') ? 'O' : 'X';
+            setGameBoard(updatedBoard);
+            setTurn(!turn);
         }
     };
 
@@ -139,7 +126,8 @@ const Home: NextPage = () => {
 
                 <Board 
                     onClick={ i => handleCellClick(i) }
-                    boardCells={gameBoard} />
+                    boardCells={gameBoard} 
+                />
             </main>
         </>
     );
