@@ -6,12 +6,55 @@ import io from 'socket.io-client';
 import {DefaultEventsMap} from "@socket.io/component-emitter";
 import { CellType, PlayerInit } from "./types";
 
-// Gobal Variable Declaration // 
 let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
+
+interface StatusProps {
+    onClick(): void;
+    gameStarted: boolean;
+    isJoined: boolean;
+    isXTurn: boolean;
+    playerIsX: boolean;
+};
 
 interface BoardProps {
     onClick(cellIndex: number): void;
     boardCells: CellType[];
+};
+
+const Status: React.FC<StatusProps> = (props) => {
+    return (
+        <div>
+            { !props.gameStarted && !props.isJoined && <button 
+                className="bg-blue-600 w-24 h-8 hover:bg-gray-500 text-white"
+                onClick={() => props.onClick()}>
+                    Join Game
+            </button> }
+
+            { !props.gameStarted && props.isJoined && <span>
+                Waiting for opponent to join...
+            </span>}
+
+            { props.gameStarted && props.isJoined && 
+              props.isXTurn && props.playerIsX && <span>
+                Your Turn...
+            </span>}
+
+            { props.gameStarted && props.isJoined && 
+              !props.isXTurn && !props.playerIsX && <span>
+                Your Turn...
+            </span>}
+
+            { props.gameStarted && props.isJoined && 
+              !props.isXTurn && props.playerIsX && <span>
+                Opponent's Turn...
+            </span>}
+
+            { props.gameStarted && props.isJoined && 
+              props.isXTurn && !props.playerIsX && <span>
+                Opponent's Turn...
+            </span>}
+        </div>
+    );
 };
 
 const Board: React.FC<BoardProps> = (props) => {
@@ -32,15 +75,14 @@ const Board: React.FC<BoardProps> = (props) => {
             })}
         </div>
     );
-}
+};
 
-// Main Page Layout //
 const Home: NextPage = () => {
-    const [isJoined, setIsJoined] = useState(false);
-    const [gameStarted, setGameStarted] = useState(false);
-    const [turn, setTurn] = useState(false);
+    const [isJoined, setIsJoined] = useState<boolean>(false);
+    const [gameStarted, setGameStarted] = useState<boolean>(false);
+    const [isXTurn, setIsXTurn] = useState<boolean>(true);
     const [gameBoard, setGameBoard] = useState<CellType[]>(Array(9).fill(''));
-    let playerSymbol: CellType = '';
+    let isPlayerX: boolean = false;
 
     const socketInitializer = async () => {
         await fetch('/api/socket');
@@ -55,38 +97,29 @@ const Home: NextPage = () => {
         });
 
         socket.on('game-start', (playerInit: PlayerInit) => {
-            if (playerInit.p1Id === socket.id) {
-                playerSymbol = 'X';
-                setTurn(!turn);
-            } else if (playerInit.p2Id === socket.id) {
-                playerSymbol = 'O';
-            }
-
+            isPlayerX = (playerInit.p1Id === socket.id) ? true : false;
             setGameStarted(!gameStarted);
             console.log('Game has been started...');
         });
 
         socket.on('move-made', (cellIndex: number) => {
-            if (playerSymbol === 'X' || playerSymbol === 'O') {
-                const updatedBoard = [...gameBoard];
-                updatedBoard[cellIndex] =  (playerSymbol === 'X') ? 'X' : 'O';
-                setGameBoard(updatedBoard);
-                setTurn(!turn);
-            }
+            const updatedBoard = [...gameBoard];
+            updatedBoard[cellIndex] = isXTurn ? 'X' : 'O';
+            setGameBoard(updatedBoard);
+            setIsXTurn(!isXTurn);
         });
     };
 
     // Socket will be initalized when first loading the page
     useEffect(() => { socketInitializer(); }, []);
 
+    const handleJoinButtonClick = () => {
+        setIsJoined(!isJoined);
+        socket.emit('join-game');
+    };
+
     const handleCellClick = (cellIndex: number) => {
-        if (turn && gameBoard[cellIndex] === '') {
-            socket.emit('cell-clicked', cellIndex);
-            const updatedBoard = [...gameBoard];
-            updatedBoard[cellIndex] =  (playerSymbol === 'X') ? 'O' : 'X';
-            setGameBoard(updatedBoard);
-            setTurn(!turn);
-        }
+        socket.emit('cell-clicked', cellIndex);
     };
 
     return (
@@ -103,30 +136,17 @@ const Home: NextPage = () => {
 
                 <h1 className="text-3xl py-2">Tic Tac Toe</h1>
 
-                { !isJoined && !gameStarted && <button
-                    className="bg-blue-600 w-24 h-8 hover:bg-gray-500 text-white"
-                    onClick={ () => {
-                        setIsJoined(!isJoined);
-                        socket.emit('join-game');
-                    }}>
-                        Join Game
-                </button> }
-
-                { isJoined && !gameStarted && <div>
-                    Waiting for other player to join...
-                </div>}
-
-                { isJoined && gameStarted && turn && <div>
-                    Your Turn
-                </div>}
-
-                { isJoined && gameStarted && !turn && <div>
-                    Opponent's Turn
-                </div>}
+                <Status
+                    onClick={ handleJoinButtonClick }
+                    gameStarted={ gameStarted }
+                    isJoined={ isJoined }
+                    isXTurn={ isXTurn }
+                    playerIsX={ isPlayerX }
+                />
 
                 <Board 
                     onClick={ i => handleCellClick(i) }
-                    boardCells={gameBoard} 
+                    boardCells={ gameBoard } 
                 />
             </main>
         </>
