@@ -25,13 +25,18 @@ const game: GameState = {
 };
 
 const checkWinner = (board: CellType[], movesMade: number): GameStatus => {
-    const winConditions = [
+    const winConditions: [number, number, number][] = [
+        // Horizontal
         [0, 1, 2],
         [3, 4, 5],
         [6, 7, 8],
+
+        // Veritical
         [0, 3, 6],
         [1, 4, 7],
         [2, 5, 8],
+
+        // Diagonal
         [0, 4, 8],
         [2, 4, 6]
     ];
@@ -41,19 +46,13 @@ const checkWinner = (board: CellType[], movesMade: number): GameStatus => {
         winner: ''
     };
 
-    for (let i = 0; i < winConditions.length; ++i) {
-        const current = winConditions[i] || [];
-        
-        // Hacky solution to get cell value
-        let [a, b, c] = current;
-        a = (a === undefined) ? 10 : a;
-        b = (b === undefined) ? 10 : b;
-        c = (c === undefined) ? 10 : c;
-
-        if ((board[a] === 'X' || board[a] === 'O') && a === b && a === c) {
-            gameStatus.gameOver = true;
-            gameStatus.winner = board[a] || '';
-            return gameStatus;
+    for (let i = 0; i < winConditions.length; i++) {
+        const [a, b, c] = winConditions[i] || [10, 10, 10];
+        if ((board[a] === 'X' || board[a] === 'O') && 
+            board[a] === board[b] && board[a] === board[c]) {
+                gameStatus.winner = board[a] || '';
+                gameStatus.gameOver = true;
+                return gameStatus;
         }
     }
 
@@ -102,8 +101,6 @@ const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
 
             socket.on('cell-clicked', (cellIndex: number) => {
                 // Update game board
-                console.log('Updating board...');
-
                 const correctTurn: boolean = (game.playerTurn === 'X' && socket.id === game.playerIds[0] || 
                     game.playerTurn === 'O' && socket.id === game.playerIds[1]);
 
@@ -111,6 +108,7 @@ const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
                     // Update the bord if the move is valid
                     game.board[cellIndex] = game.playerTurn;
                     game.movesPlayed++;
+                    game.playerTurn = (game.playerTurn === 'X') ? 'O' : 'X';
 
                     // Emit move made to clients so they can update
                     socket.emit('move-made', game.board);
@@ -118,13 +116,14 @@ const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
 
                     // Check for winner or draw
                     const status = checkWinner(game.board, game.movesPlayed);
+                    console.log('Game Status: ', status);
                     if (status.gameOver) {
                         socket.emit('game-over', status);
                         socket.broadcast.emit('game-over', status);
+
+                        // Reset game
                     }
 
-                    // Set turn to next player
-                    game.playerTurn = (game.playerTurn === 'X') ? 'O' : 'X';
                 }
             });
         });

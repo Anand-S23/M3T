@@ -108,12 +108,13 @@ const Home: NextPage = () => {
         });
 
         socket.on('game-over', (status: GameStatus) => {
-            alert(status.winner + ' won the game');
+            const msg = (status.winner === '') ? 'Tie Game' : ' won the game';
+            alert(status.winner + msg);
         });
     };
 
     // Socket will be initalized when first loading the page
-    useEffect(() => { socketInitializer() });
+    useEffect(() => { socketInitializer() }, []);
 
     const handleJoinButtonClick = () => {
         setIsJoined(!isJoined);
@@ -128,11 +129,7 @@ const Home: NextPage = () => {
         <>
             <Head>
                 <title>M3T</title>
-                <meta http-equiv="X-UA-Compatible" content="IE=11"/>
                 <meta name="description" content="Tic Tac Toe Game" />
-                <meta http-equiv="Cache-Control" content="no-cache"/>
-                <meta http-equiv="Content-Security-Policy" 
-                    content="default-src 'self'; style-src 'self';"/>
                 <link rel="icon" href="/favicon.ico" />
             </Head>
 
