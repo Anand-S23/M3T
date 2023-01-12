@@ -1,8 +1,8 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { Server as HTTPServer } from 'http';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import type { Server as HTTPServer } from 'http';
+import type { Socket } from 'net';
+import type { CellType, GameState, GameStatus, PlayerInit } from '../../types';
 import { Server as SocketIOServer } from 'socket.io';
-import { Socket } from 'net';
-import { GameState, PlayerInit } from '../types';
 
 interface SocketServer extends HTTPServer {
     io?: SocketIOServer | undefined
@@ -18,11 +18,47 @@ interface NextApiResponseWithSocket extends NextApiResponse {
 
 const game: GameState = {
     running: false,
-    board: new Array(9).fill(0),
+    board: new Array(9).fill(''),
     movesPlayed: 0,
-    playerTurn: 1,
+    playerTurn: 'X',
     playerIds: []
 };
+
+const checkWinner = (board: CellType[], movesMade: number): GameStatus => {
+    const winConditions = [
+        [0, 1, 2],
+        [3, 4, 5],
+        [6, 7, 8],
+        [0, 3, 6],
+        [1, 4, 7],
+        [2, 5, 8],
+        [0, 4, 8],
+        [2, 4, 6]
+    ];
+
+    const gameStatus: GameStatus = {
+        gameOver: (movesMade === 9),
+        winner: ''
+    };
+
+    for (let i = 0; i < winConditions.length; ++i) {
+        const current = winConditions[i] || [];
+        
+        // Hacky solution to get cell value
+        let [a, b, c] = current;
+        a = (a === undefined) ? 10 : a;
+        b = (b === undefined) ? 10 : b;
+        c = (c === undefined) ? 10 : c;
+
+        if ((board[a] === 'X' || board[a] === 'O') && a === b && a === c) {
+            gameStatus.gameOver = true;
+            gameStatus.winner = board[a] || '';
+            return gameStatus;
+        }
+    }
+
+    return gameStatus;
+}
 
 const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
     if (res.socket.server.io) {
@@ -68,22 +104,27 @@ const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
                 // Update game board
                 console.log('Updating board...');
 
-                const correctTurn: boolean = (game.playerTurn === 1 && socket.id === game.playerIds[0] || 
-                    game.playerTurn === 2 && socket.id === game.playerIds[1]);
+                const correctTurn: boolean = (game.playerTurn === 'X' && socket.id === game.playerIds[0] || 
+                    game.playerTurn === 'O' && socket.id === game.playerIds[1]);
 
-                if (game.board[cellIndex] === 0 && correctTurn) {
+                if (game.board[cellIndex] === '' && correctTurn) {
                     // Update the bord if the move is valid
                     game.board[cellIndex] = game.playerTurn;
                     game.movesPlayed++;
 
                     // Emit move made to clients so they can update
-                    socket.emit('move-made', cellIndex);
-                    socket.broadcast.emit('move-made', cellIndex);
+                    socket.emit('move-made', game.board);
+                    socket.broadcast.emit('move-made', game.board);
 
-                    // TODO: Check for winner or draw
+                    // Check for winner or draw
+                    const status = checkWinner(game.board, game.movesPlayed);
+                    if (status.gameOver) {
+                        socket.emit('game-over', status);
+                        socket.broadcast.emit('game-over', status);
+                    }
 
                     // Set turn to next player
-                    game.playerTurn = (game.playerTurn === 1) ? 2 : 1;
+                    game.playerTurn = (game.playerTurn === 'X') ? 'O' : 'X';
                 }
             });
         });

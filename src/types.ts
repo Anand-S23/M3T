@@ -7,10 +7,15 @@ type PlayerInit = {
 
 type GameState = {
     running: boolean,
-    board: number[],
+    board: CellType[],
     movesPlayed: number,
-    playerTurn: number,
+    playerTurn: CellType,
     playerIds: string[]
 };
 
-export type { CellType, PlayerInit, GameState };
+type GameStatus = {
+    gameOver: boolean,
+    winner: CellType
+};
+
+export type { CellType, PlayerInit, GameState, GameStatus };

@@ -1,10 +1,10 @@
 import { type NextPage } from "next";
 import Head from "next/head";
-import { FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Socket } from "socket.io-client";
 import io from 'socket.io-client';
-import {DefaultEventsMap} from "@socket.io/component-emitter";
-import { CellType, PlayerInit } from "./types";
+import type {DefaultEventsMap} from "@socket.io/component-emitter";
+import type { CellType, PlayerInit, GameStatus } from "../types";
 
 let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
 
@@ -14,12 +14,12 @@ interface StatusProps {
     isJoined: boolean;
     isXTurn: boolean;
     playerIsX: boolean;
-};
+}
 
 interface BoardProps {
     onClick(cellIndex: number): void;
     boardCells: CellType[];
-};
+}
 
 const Status: React.FC<StatusProps> = (props) => {
     return (
@@ -46,19 +46,19 @@ const Status: React.FC<StatusProps> = (props) => {
 
             { props.gameStarted && props.isJoined && 
               !props.isXTurn && props.playerIsX && <span>
-                Opponent's Turn...
+                { "Opponent's Turn..." }
             </span>}
 
             { props.gameStarted && props.isJoined && 
               props.isXTurn && !props.playerIsX && <span>
-                Opponent's Turn...
+                { "Opponent's Turn..." }
             </span>}
         </div>
     );
 };
 
 const Board: React.FC<BoardProps> = (props) => {
-    const cellStyle: string = `border-solid border-2 border-black 
+    const cellStyle = `border-solid border-2 border-black 
         w-32 h-32 text-6xl text-center flex items-center 
         justify-center hover:cusor-pointer`;
 
@@ -82,7 +82,7 @@ const Home: NextPage = () => {
     const [gameStarted, setGameStarted] = useState<boolean>(false);
     const [isXTurn, setIsXTurn] = useState<boolean>(true);
     const [gameBoard, setGameBoard] = useState<CellType[]>(Array(9).fill(''));
-    let isPlayerX: boolean = false;
+    let isPlayerX = false;
 
     const socketInitializer = async () => {
         await fetch('/api/socket');
@@ -102,16 +102,18 @@ const Home: NextPage = () => {
             console.log('Game has been started...');
         });
 
-        socket.on('move-made', (cellIndex: number) => {
-            const updatedBoard = [...gameBoard];
-            updatedBoard[cellIndex] = isXTurn ? 'X' : 'O';
+        socket.on('move-made', (updatedBoard: CellType[]) => {
             setGameBoard(updatedBoard);
             setIsXTurn(!isXTurn);
+        });
+
+        socket.on('game-over', (status: GameStatus) => {
+            alert(status.winner + ' won the game');
         });
     };
 
     // Socket will be initalized when first loading the page
-    useEffect(() => { socketInitializer(); }, []);
+    useEffect(() => { socketInitializer() });
 
     const handleJoinButtonClick = () => {
         setIsJoined(!isJoined);
@@ -126,7 +128,11 @@ const Home: NextPage = () => {
         <>
             <Head>
                 <title>M3T</title>
+                <meta http-equiv="X-UA-Compatible" content="IE=11"/>
                 <meta name="description" content="Tic Tac Toe Game" />
+                <meta http-equiv="Cache-Control" content="no-cache"/>
+                <meta http-equiv="Content-Security-Policy" 
+                    content="default-src 'self'; style-src 'self';"/>
                 <link rel="icon" href="/favicon.ico" />
             </Head>
 
