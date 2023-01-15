@@ -16,13 +16,15 @@ interface NextApiResponseWithSocket extends NextApiResponse {
     socket: SocketWithIO
 }
 
-const game: GameState = {
-    running: false,
-    board: new Array(9).fill(''),
-    movesPlayed: 0,
-    playerTurn: 'X',
-    playerIds: []
-};
+const resetGameState = (): GameState => {
+    return {
+        running: false,
+        board: new Array(9).fill(''),
+        movesPlayed: 0,
+        playerTurn: 'X',
+        playerIds: []
+    };
+}
 
 const checkWinner = (board: CellType[], movesMade: number): GameStatus => {
     const winConditions: [number, number, number][] = [
@@ -60,22 +62,19 @@ const checkWinner = (board: CellType[], movesMade: number): GameStatus => {
 }
 
 const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
-    if (res.socket.server.io) {
-        console.log('Socket already exists');
-    } else {
-        console.log('Socket initalizing...');
+    let game: GameState = resetGameState();
 
+    if (!res.socket.server.io) {
         // Socket Initalization
         const io = new SocketIOServer(res.socket.server);
         res.socket.server.io = io;
 
         io.on('connect', socket => {
-            console.log('A user has connected: ' + socket.id);
+            // Set game running
             socket.emit('game-status', game.running);
 
             socket.on('join-game', () => {
                 // Can only join if game not started
-                console.log('Attempting to join game...');
                 if (!game.running) {
                     console.log(`${socket.id} successfully connected to game...`);
                     const newLength = game.playerIds.push(socket.id);
@@ -89,12 +88,9 @@ const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
                         console.log('Player 2 ID: ' + game.playerIds[1]);
 
                         // Emit game start to all connected sockets
-                        const playerInit: PlayerInit = {
-                            p1Id: game.playerIds[0],
-                            p2Id: game.playerIds[1]
-                        };
-                        socket.emit('game-start', playerInit);
-                        socket.broadcast.emit('game-start', playerInit);
+                        // TODO: Randomly determine starting symbol
+                        socket.emit('game-start', 'O');
+                        socket.broadcast.emit('game-start', 'X');
                     }
                 }
             });
@@ -116,12 +112,13 @@ const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
 
                     // Check for winner or draw
                     const status = checkWinner(game.board, game.movesPlayed);
-                    console.log('Game Status: ', status);
                     if (status.gameOver) {
+                        console.log('Game over, game will be reset...');
                         socket.emit('game-over', status);
                         socket.broadcast.emit('game-over', status);
 
                         // Reset game
+                        game = resetGameState();
                     }
 
                 }

@@ -22,6 +22,14 @@ interface BoardProps {
 }
 
 const Status: React.FC<StatusProps> = (props) => {
+    console.log("Player X", props.playerIsX);
+    console.log("button", !props.gameStarted && !props.isJoined);
+    console.log("Waiting", !props.gameStarted && props.isJoined);
+    console.log('X Turn - X Player', props.gameStarted && props.isJoined && props.isXTurn && props.playerIsX);
+    console.log('O Turn - O Player', props.gameStarted && props.isJoined && !props.isXTurn && !props.playerIsX);
+    console.log('X Turn - O Player', props.gameStarted && props.isJoined && props.isXTurn && !props.playerIsX);
+    console.log('O Turn - X Player', props.gameStarted && props.isJoined && !props.isXTurn && props.playerIsX);
+
     return (
         <div>
             { !props.gameStarted && !props.isJoined && <button 
@@ -31,17 +39,17 @@ const Status: React.FC<StatusProps> = (props) => {
             </button> }
 
             { !props.gameStarted && props.isJoined && <span>
-                Waiting for opponent to join...
+                { "Waiting for opponent to join..." }
             </span>}
 
             { props.gameStarted && props.isJoined && 
               props.isXTurn && props.playerIsX && <span>
-                Your Turn...
+                { "Your Turn..." }
             </span>}
 
             { props.gameStarted && props.isJoined && 
               !props.isXTurn && !props.playerIsX && <span>
-                Your Turn...
+                { "Your Turn..." }
             </span>}
 
             { props.gameStarted && props.isJoined && 
@@ -82,7 +90,7 @@ const Home: NextPage = () => {
     const [gameStarted, setGameStarted] = useState<boolean>(false);
     const [isXTurn, setIsXTurn] = useState<boolean>(true);
     const [gameBoard, setGameBoard] = useState<CellType[]>(Array(9).fill(''));
-    let isPlayerX = false;
+    const [isPlayerX, setPlayerX] = useState<boolean>(false);
 
     const socketInitializer = async () => {
         await fetch('/api/socket');
@@ -96,10 +104,12 @@ const Home: NextPage = () => {
             setGameStarted(started);
         });
 
-        socket.on('game-start', (playerInit: PlayerInit) => {
-            isPlayerX = (playerInit.p1Id === socket.id) ? true : false;
+        socket.on('game-start', (playerSymbol: CellType) => {
+            setPlayerX(playerSymbol === 'X');
             setGameStarted(!gameStarted);
+            setPlayerX(true);
             console.log('Game has been started...');
+            console.log('Player is X: ', isPlayerX);
         });
 
         socket.on('move-made', (updatedBoard: CellType[]) => {
